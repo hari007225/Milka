@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birthday Quest | For Milka</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Poppins:wght@300;400;600&display=swap');
+        
+        body { 
+            margin: 0; overflow: hidden; 
+            background: url('bg.jpg') no-repeat center center fixed; 
+            background-size: cover;
+            font-family: 'Poppins', sans-serif; color: white; touch-action: none; 
+        }
+
+        /* Background Dark Overlay */
+        body::before {
+            content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6); z-index: -1;
+        }
+        
+        canvas { display: block; position: fixed; top: 0; left: 0; z-index: 1; }
+        
+        .score-board { position: absolute; top: 30px; width: 100%; text-align: center; pointer-events: none; font-size: 24px; color: #fda4af; text-shadow: 0 0 15px #e11d48; font-weight: 600; z-index: 10; }
+
+        /* Hanging Photos CSS */
+        .hanging-container {
+            display: flex; justify-content: space-evenly; width: 100%;
+            position: absolute; top: -10px; z-index: 105;
+        }
+
+        .photo-frame {
+            width: 85px; height: 110px; background: white; padding: 5px;
+            border-radius: 3px; box-shadow: 0 8px 15px rgba(0,0,0,0.5);
+            position: relative; transform-origin: top center;
+            animation: swing 3.5s ease-in-out infinite;
+        }
+
+        .photo-frame::before {
+            content: ""; position: absolute; top: -60px; left: 50%;
+            width: 1.5px; height: 60px; background: rgba(255,255,255,0.7);
+        }
+
+        .photo-frame img { width: 100%; height: 85px; object-fit: cover; border-radius: 2px; }
+
+        @keyframes swing {
+            0% { transform: rotate(6deg); }
+            50% { transform: rotate(-6deg); }
+            100% { transform: rotate(6deg); }
+        }
+
+        #letter-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(2, 6, 23, 0.9); backdrop-filter: blur(10px); z-index: 100; justify-content: center; align-items: center; }
+        
+        .letter-container { 
+            background: rgba(255, 253, 253, 0.98); color: #1e1b4b; padding: 30px; width: 85%; max-width: 400px; min-height: 400px; 
+            border-radius: 20px; position: relative; box-shadow: 0 0 50px rgba(225, 29, 72, 0.3); 
+            display: flex; flex-direction: column; margin-top: 100px;
+        }
+        
+        .letter-content { flex-grow: 1; font-family: 'Dancing Script', cursive; font-size: 1.5rem; text-align: center; display: flex; flex-direction: column; justify-content: center; line-height: 1.5; color: #312e81; }
+        
+        .btn { background: #e11d48; color: white; border: none; padding: 10px 20px; border-radius: 50px; cursor: pointer; font-weight: 600; font-family: 'Poppins'; }
+        
+        .music-hint { position: fixed; bottom: 20px; width: 100%; text-align: center; font-size: 12px; color: #fda4af; z-index: 5; opacity: 0.7; }
+    </style>
+</head>
+<body>
+
+    <audio id="bgMusic" loop>
+        <source src="music.mp3" type="audio/mpeg">
+    </audio>
+
+    <div class="score-board">Hearts for Milka: <span id="score">0</span> / 10</div>
+    <div class="music-hint">Tap anywhere for music 🎵</div>
+    
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="letter-modal">
+        <div class="hanging-container">
+            <div class="photo-frame" style="animation-delay: 0s;">
+                <img src="photo1.jpg">
+            </div>
+            <div class="photo-frame" style="animation-delay: -1.2s;">
+                <img src="photo2.jpg">
+            </div>
+            <div class="photo-frame" style="animation-delay: -2.4s;">
+                <img src="photo3.jpg">
+            </div>
+        </div>
+
+        <div class="letter-container">
+            <div id="page-content" class="letter-content"></div>
+            <div class="nav-buttons" style="display:flex; justify-content: space-between; margin-top:15px;">
+                <button id="prevBtn" class="btn" onclick="prevPage()" disabled>Back</button>
+                <button id="nextBtn" class="btn" onclick="nextPage()">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const music = document.getElementById('bgMusic');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let score = 0;
+        let gameActive = true;
+        let hearts = [];
+        let mouseX = canvas.width / 2;
+
+        const pages = [
+            `<p>Happy Birthday, Milka! 🎂<br><br>I wanted to do something a bit different for you today. You’ve had a long journey, and you’ve handled it all with so much grace.</p>`,
+            `<p>I know things haven't always been easy. But look at where you are now—standing tall. I'm genuinely proud of you.</p>`,
+            `<p>Distance might be there, but my support for you is constant. Keep moving forward and never let anyone dull your spark.<br><br>- Hari</p>`,
+            `<p>Don't keep a dull face... If you were ever to go missing, I would swim across the entire ocean just to come find you!<br><br>Smile now... good girl! ✨</p>`
+        ];
+
+        let currentPage = 0;
+
+        // Music Start Logic
+        const startMusic = () => {
+            music.play().catch(e => console.log("Play blocked"));
+            document.querySelector('.music-hint').style.display = 'none';
+        };
+        window.addEventListener('click', startMusic, { once: true });
+        window.addEventListener('touchstart', startMusic, { once: true });
+
+        function updateLetter() {
+            document.getElementById('page-content').innerHTML = pages[currentPage];
+            document.getElementById('prevBtn').disabled = currentPage === 0;
+            document.getElementById('nextBtn').innerText = currentPage === pages.length - 1 ? "Finish" : "Next";
+        }
+
+        function nextPage() {
+            if (currentPage < pages.length - 1) { currentPage++; updateLetter(); }
+            else { location.reload(); }
+        }
+
+        function prevPage() { if (currentPage > 0) { currentPage--; updateLetter(); } }
+
+        class Heart {
+            constructor() {
+                this.x = Math.random() * (canvas.width - 40);
+                this.y = -50;
+                this.speed = 3 + Math.random() * 2;
+                this.size = 35;
+            }
+            draw() { ctx.font = `${this.size}px Arial`; ctx.fillText("❤️", this.x, this.y); }
+            update() {
+                this.y += this.speed;
+                if (this.y > canvas.height - 70 && this.y < canvas.height - 40 && 
+                    this.x > mouseX - 60 && this.x < mouseX + 60) {
+                    score++;
+                    document.getElementById('score').innerText = score;
+                    this.y = canvas.height + 100;
+                    if (score === 10) { 
+                        gameActive = false; 
+                        setTimeout(() => { 
+                            document.getElementById('letter-modal').style.display = 'flex'; 
+                            updateLetter(); 
+                        }, 500); 
+                    }
+                }
+            }
+        }
+
+        window.addEventListener('mousemove', (e) => mouseX = e.clientX);
+        window.addEventListener('touchmove', (e) => { mouseX = e.touches[0].clientX; e.preventDefault(); }, { passive: false });
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#e11d48";
+            ctx.beginPath(); ctx.roundRect(mouseX - 50, canvas.height - 50, 100, 12, 10); ctx.fill();
+            hearts.forEach((h, i) => { h.update(); h.draw(); if (h.y > canvas.height) hearts.splice(i, 1); });
+            if (gameActive) requestAnimationFrame(animate);
+        }
+
+        setInterval(() => { if (gameActive) hearts.push(new Heart()); }, 800);
+        animate();
+    </script>
+</body>
+</html>
